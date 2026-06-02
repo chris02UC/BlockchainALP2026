@@ -14,11 +14,13 @@ export default function Navbar(): JSX.Element {
   return (
     <nav className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shadow-sm sticky top-0 z-10">
       <div className="flex items-center gap-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-blue-600">D-Lancer</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-blue-600">DFM</h1>
         <div className="hidden md:flex gap-2">
-          <Link to="/" className={navLinkStyle('/')}>Marketplace</Link>
-          <Link to="/orders" className={navLinkStyle('/orders')}>My Orders</Link>
-          <Link to="/disputes" className={navLinkStyle('/disputes')}>Resolution Center</Link>
+          <Link to="/" className={navLinkStyle('/')}>Marketplace </Link>
+          <span className="text-gray-400">|</span>
+          <Link to="/orders" className={navLinkStyle('/orders')}> My Orders </Link>
+          <span className="text-gray-400">|</span>
+          <Link to="/disputes" className={navLinkStyle('/disputes')}> Resolution Center</Link>
         </div>
       </div>
       
