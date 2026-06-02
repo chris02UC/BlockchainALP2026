@@ -1,16 +1,12 @@
 import React, { useState, createContext, useContext, type ReactNode, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { type Web3ContextType, type Web3Contracts } from '../types';
+import { MARKETPLACE_ADDRESS, DISPUTES_ADDRESS, RATINGS_ADDRESS } from '../config';
 
-// Assuming you have copied your compiled JSONs to src/abis/
 import MarketplaceABI from '../abis/Marketplace.json';
 import DisputesABI from '../abis/Disputes.json';
 import RatingsABI from '../abis/Ratings.json';
 
-// Replace with your actual deployed contract addresses
-const MARKETPLACE_ADDRESS = "0xYourMarketplaceAddress";
-const DISPUTES_ADDRESS = "0xYourDisputesAddress";
-const RATINGS_ADDRESS = "0xYourRatingsAddress";
 
 const Web3Context = createContext<Web3ContextType | undefined>(undefined);
 
