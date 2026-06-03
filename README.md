@@ -5,7 +5,6 @@ npx hardhat compile
 npx hardhat node => creates 20 test accounts
 
 ## terminal 2
-npx hardhat ignition deploy ./ignition/modules/Lock.ts --network localhost
 cd dfm-frontend
 npm run dev / pnpm dev
 
@@ -24,3 +23,7 @@ top right > settings > add custom network > fill this in:
 bottom right > custom network > select the custom network you just made
 click on connect wallet in website page
 feel free to test the rest
+
+## "nonce too high" error
+open Rabby Wallet extension
+top right > clear pending locally > tick "also reset my local nonce data" > confirm

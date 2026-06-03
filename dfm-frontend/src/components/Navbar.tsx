@@ -16,11 +16,9 @@ export default function Navbar(): JSX.Element {
       <div className="flex items-center gap-8">
         <h1 className="text-2xl font-extrabold tracking-tight text-blue-600">DFM</h1>
         <div className="hidden md:flex gap-2">
-          <Link to="/" className={navLinkStyle('/')}>Marketplace </Link>
-          <span className="text-gray-400">|</span>
-          <Link to="/orders" className={navLinkStyle('/orders')}> My Orders </Link>
-          <span className="text-gray-400">|</span>
-          <Link to="/disputes" className={navLinkStyle('/disputes')}> Resolution Center</Link>
+          <Link to="/" className={navLinkStyle('/')}>Marketplace</Link>
+          <Link to="/orders" className={navLinkStyle('/orders')}>My Orders</Link>
+          <Link to="/disputes" className={navLinkStyle('/disputes')}>Resolution Center</Link>
         </div>
       </div>
       

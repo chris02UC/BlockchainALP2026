@@ -11,7 +11,7 @@ export default function App(): JSX.Element {
   return (
     <Web3Provider>
       <Router>
-        <div className="bg-gray-50 min-h-screen font-sans text-gray-800">
+        <div className="bg-gray-50 min-h-screen min-w-screen overflow-x-hidden font-sans text-gray-800">
           <Navbar />
           <main className="pt-8 pb-20">
             <Routes>
