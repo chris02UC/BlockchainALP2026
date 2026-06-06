@@ -4,8 +4,10 @@ import { Web3Provider } from './context/useWeb3';
 
 import Navbar from './components/Navbar';
 import Marketplace from './pages/Marketplace';
-import Orders from './/pages/Orders';
+import Orders from './pages/Orders'; // Fixed the double slash here
 import Disputes from './pages/Disputes';
+import SellerDashboard from './pages/SellerDashboard'; // 1. Import the new dashboard
+import Profile from './pages/Profile';
 
 export default function App(): JSX.Element {
   return (
@@ -18,6 +20,8 @@ export default function App(): JSX.Element {
               <Route path="/" element={<Marketplace />} />
               <Route path="/orders" element={<Orders />} />
               <Route path="/disputes" element={<Disputes />} />
+              <Route path="/dashboard" element={<SellerDashboard />} /> 
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </main>
         </div>

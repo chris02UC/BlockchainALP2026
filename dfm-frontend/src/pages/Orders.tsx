@@ -1,163 +1,163 @@
 import React, { useState, useEffect } from 'react';
-import { useWeb3 } from '../context/useWeb3';
 import { ethers } from 'ethers';
-import { type Order } from '../types'; // We import this but will cast it away to avoid the error
-import Reviews from '../components/Reviews';
+import { useWeb3 } from '../context/useWeb3';
+import axios from 'axios';
 
-// 1. Label array to replace the broken Enum text rendering
-const STATUS_LABELS = ["PENDING", "COMPLETED", "CONFIRMED", "CANCELED", "DISPUTED"];
+// A simple utility to upload to Pinata IPFS (Requires VITE_PINATA_JWT in .env)
+const uploadToIPFS = async (file: File) => {
+  console.log("Pinata Key Check:", import.meta.env.VITE_PINATA_JWT);
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await axios.post("https://api.pinata.cloud/pinning/pinFileToIPFS", formData, {
+    headers: { Authorization: `Bearer ${import.meta.env.VITE_PINATA_JWT}` }
+  });
+  return `ipfs://${res.data.IpfsHash}`;
+};
 
-export default function Orders(): JSX.Element {
+export default function Orders() {
   const { account, contracts } = useWeb3();
-  
-  // 2. Use any[] instead of Order[] to bypass the locked BigNumber type mismatch
-  const [orders, setOrders] = useState<any[]>([]); 
-  const [loading, setLoading] = useState<boolean>(true);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [file, setFile] = useState<File | null>(null);
+  const [loadingId, setLoadingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (contracts.marketplace && account) {
-      fetchOrders();
-    } else {
-      setLoading(false);
+      loadOrders();
     }
   }, [contracts, account]);
 
-  const fetchOrders = async (): Promise<void> => {
-    if (!contracts.marketplace || !account) return;
-    
+  const loadOrders = async () => {
+    // Note: You might need to adjust this depending on how many orders the user has
+    // This is a simplified fetch assuming you have a getBuyerOrders / getSellerOrders hook
     try {
-      // 3. Bypass strict array mapping types
-      const buyerIds = await contracts.marketplace.getBuyerOrders(account);
-      const sellerIds = await contracts.marketplace.getSellerOrders(account);
+      const buyerOrderIds = await contracts.marketplace!.getBuyerOrders(account);
+      const sellerOrderIds = await contracts.marketplace!.getSellerOrders(account);
       
-      const uniqueIds = Array.from(new Set([...buyerIds, ...sellerIds].map((id: any) => id.toString())));
-
-      const orderData = await Promise.all(
-        uniqueIds.map(id => contracts.marketplace!.getOrder(id))
+      const allOrderIds = [...new Set([...buyerOrderIds, ...sellerOrderIds])];
+      const fetchedOrders = await Promise.all(
+        allOrderIds.map(id => contracts.marketplace!.getOrder(id))
       );
-      
-      // 4. Use Number() to sort instead of .toNumber()
-      setOrders(orderData.sort((a: any, b: any) => Number(b.createdAt) - Number(a.createdAt)));
-    } catch (error) {
-      console.error("Error fetching orders", error);
-    } finally {
-      setLoading(false);
+      setOrders(fetchedOrders);
+    } catch (err) {
+      console.error("Error loading orders", err);
     }
   };
 
-  // 5. Change parameters to 'any' to stop the BigNumber vs bigint fight
-  const completeOrder = async (orderId: any): Promise<void> => {
-    if (!contracts.marketplace) return;
+  const deliverWork = async (orderId: number) => {
+    if (!file || !contracts.marketplace) return;
+    setLoadingId(orderId);
     try {
-      const tx = await contracts.marketplace.completeOrder(orderId);
+      const ipfsHash = await uploadToIPFS(file);
+      const tx = await contracts.marketplace.completeOrder(orderId, ipfsHash);
       await tx.wait();
-      fetchOrders();
-    } catch (e) {
-      alert("Failed to mark as complete.");
+      loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to deliver work.");
     }
+    setLoadingId(null);
   };
 
-  const confirmDelivery = async (orderId: any): Promise<void> => {
-    if (!contracts.marketplace) return;
+  const confirmDelivery = async (orderId: number) => {
+    setLoadingId(orderId);
     try {
-      const tx = await contracts.marketplace.confirmDelivery(orderId);
+      const tx = await contracts.marketplace!.confirmDelivery(orderId);
       await tx.wait();
-      alert("Funds released from escrow!");
-      fetchOrders();
-    } catch (e) {
-      alert("Failed to confirm delivery.");
+      loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to confirm. Make sure the order is not disputed.");
     }
+    setLoadingId(null);
   };
 
-  const cancelOrder = async (orderId: any): Promise<void> => {
-    if (!contracts.marketplace) return;
+  const autoClaim = async (orderId: number) => {
+    setLoadingId(orderId);
     try {
-      const tx = await contracts.marketplace.cancelOrder(orderId);
+      const tx = await contracts.marketplace!.autoConfirmDelivery(orderId);
       await tx.wait();
-      fetchOrders();
-    } catch (e) {
-      alert("Failed to cancel order.");
+      loadOrders();
+    } catch (err) {
+      console.error(err);
+      alert("Cannot claim yet. 3 days have not passed or a dispute is active.");
     }
+    setLoadingId(null);
   };
-
-  // 6. Hardcoded numbers instead of Enum
-  const getStatusColor = (status: number) => {
-    switch (status) {
-      case 0: return 'bg-yellow-100 text-yellow-800'; // PENDING
-      case 1: return 'bg-blue-100 text-blue-800';   // COMPLETED
-      case 2: return 'bg-green-100 text-green-800'; // CONFIRMED
-      case 3: return 'bg-red-100 text-red-800';     // CANCELED
-      case 4: return 'bg-purple-100 text-purple-800'; // DISPUTED
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Safe Ethers format fallback (handles both v5 and v6)
-  const formatEth = (wei: any) => {
-    // @ts-ignore
-    return ethers.utils ? ethers.utils.formatEther(wei || 0) : ethers.formatEther(wei || 0);
-  };
-
-  if (loading) return <div className="text-center mt-20 text-gray-500">Loading orders...</div>;
-  if (!account) return <div className="text-center mt-20 text-gray-500">Please connect wallet to view orders.</div>;
 
   return (
-    <div className="max-w-5xl mx-auto px-6">
-      <h1 className="text-3xl font-bold mb-8">My Escrow Vault</h1>
-      
-      <div className="flex flex-col gap-6">
-        {orders.length === 0 ? (
-          <p className="text-gray-500 bg-white p-8 rounded-3xl border border-gray-200 text-center">You have no active or past orders.</p>
-        ) : (
-          orders.map((order: any) => {
-            const isBuyer = order.buyer === account;
-            const isSeller = order.seller === account;
-            
-            return (
-              <div key={order.id.toString()} className="bg-white p-8 rounded-3xl border border-gray-200 shadow-sm">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-sm font-bold text-gray-400">ORDER #{order.id.toString()}</span>
-                      <span className={`px-3 py-1 rounded-lg text-xs font-bold tracking-wide ${getStatusColor(order.status)}`}>
-                        {STATUS_LABELS[order.status]}
-                      </span>
-                    </div>
-                    <p className="text-gray-600 font-medium">Escrow Locked: <span className="text-black font-bold">{formatEth(order.escrowAmount)} ETH</span></p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      {isBuyer ? `Seller: ${order.seller}` : `Buyer: ${order.buyer}`}
-                    </p>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-3">
-                    {isSeller && order.status === 0 && (
-                      <button onClick={() => completeOrder(order.id)} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition">
-                        Deliver Work
-                      </button>
-                    )}
-                    
-                    {isBuyer && order.status === 1 && (
-                      <button onClick={() => confirmDelivery(order.id)} className="bg-green-500 text-white px-6 py-2.5 rounded-xl font-semibold hover:bg-green-600 transition shadow-sm border border-green-600">
-                        Approve & Release Funds
-                      </button>
-                    )}
-                    
-                    {(order.status === 0 || order.status === 1) && (
-                      <button onClick={() => cancelOrder(order.id)} className="bg-red-50 text-red-600 px-6 py-2.5 rounded-xl font-semibold hover:bg-red-100 transition border border-red-200">
-                        Cancel
-                      </button>
-                    )}
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-2xl font-bold mb-6">Active Orders</h1>
+      <div className="space-y-4">
+        {orders.map((order) => {
+          const isSeller = order.seller.toLowerCase() === account?.toLowerCase();
+          const isBuyer = order.buyer.toLowerCase() === account?.toLowerCase();
+          
+          // 3 days = 259200 seconds
+          const canAutoClaim = order.completedAt > 0 && 
+            (Math.floor(Date.now() / 1000) >= Number(order.completedAt) + 259200);
+
+          return (
+            <div key={order.id} className="p-4 border rounded-lg shadow-sm bg-white">
+              <div className="flex justify-between border-b pb-2 mb-4">
+                <h3 className="font-semibold">Order #{order.id.toString()}</h3>
+                <span className="text-blue-600 font-bold">{ethers.utils.formatEther(order.amount)} ETH</span>
+              </div>
+
+              {/* Status PENDING - Seller needs to deliver */}
+              {order.status === 0 && isSeller && (
+                <div>
+                  <p className="text-sm text-gray-600 mb-2">Upload the final files for the buyer:</p>
+                  <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} className="mb-2 block" />
+                  <button 
+                    onClick={() => deliverWork(order.id)}
+                    disabled={loadingId === order.id || !file}
+                    className="bg-blue-600 text-white px-4 py-2 rounded"
+                  >
+                    {loadingId === order.id ? 'Uploading...' : 'Deliver Work'}
+                  </button>
+                </div>
+              )}
+
+              {/* Status COMPLETED - Buyer needs to review */}
+              {order.status === 1 && isBuyer && (
+                <div>
+                  <p className="text-green-600 mb-2">Work delivered! Please review and confirm.</p>
+                  <a 
+                    href={`https://gateway.pinata.cloud/ipfs/${order.deliveryHash.replace('ipfs://', '')}`} 
+                    target="_blank" rel="noreferrer"
+                    className="text-blue-500 underline mb-4 block"
+                  >
+                    Download File
+                  </a>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => confirmDelivery(order.id)}
+                      disabled={loadingId === order.id}
+                      className="bg-green-600 text-white px-4 py-2 rounded"
+                    >
+                      {loadingId === order.id ? 'Processing...' : 'Confirm Delivery'}
+                    </button>
+                    {/* Add a button to route to Disputes page here */}
                   </div>
                 </div>
+              )}
 
-                {/* Show review component if order is fully confirmed and user is the buyer */}
-                {isBuyer && order.status === 2 && (
-                  <Reviews orderId={order.id} sellerAddress={order.seller} />
-                )}
-              </div>
-            );
-          })
-        )}
+              {/* Status COMPLETED - Seller waiting or claiming */}
+              {order.status === 1 && isSeller && (
+                <div className="bg-yellow-50 p-3 rounded">
+                  <p className="text-sm text-yellow-800">Waiting for buyer to confirm.</p>
+                  <button 
+                    onClick={() => autoClaim(order.id)}
+                    disabled={!canAutoClaim || loadingId === order.id}
+                    className="mt-2 bg-yellow-600 text-white px-4 py-2 rounded disabled:opacity-50"
+                  >
+                    {loadingId === order.id ? 'Processing...' : 'Auto-Claim Funds (After 3 Days)'}
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

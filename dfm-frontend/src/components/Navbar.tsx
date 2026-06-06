@@ -18,15 +18,20 @@ export default function Navbar(): JSX.Element {
         <div className="hidden md:flex gap-2">
           <Link to="/" className={navLinkStyle('/')}>Marketplace</Link>
           <Link to="/orders" className={navLinkStyle('/orders')}>My Orders</Link>
+          <Link to="/dashboard" className={navLinkStyle('/dashboard')}>My Services</Link>
           <Link to="/disputes" className={navLinkStyle('/disputes')}>Resolution Center</Link>
         </div>
       </div>
       
       <div>
         {account ? (
-          <div className="bg-green-50 text-green-700 px-5 py-2.5 rounded-xl border border-green-200 font-medium">
-            {account.substring(0, 6)}...{account.substring(38)}
-          </div>
+          <Link to="/profile" className="inline-flex items-center" aria-label="Profile">
+            <img
+              src={`https://avatars.dicebear.com/api/identicon/${account}.svg`}
+              alt="Profile"
+              className="w-10 h-10 rounded-full border border-gray-200"
+            />
+          </Link>
         ) : (
           <button 
             onClick={connectWallet}

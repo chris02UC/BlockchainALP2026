@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  // Primary Key is always the wallet address
+  walletAddress     String   @id @unique 
+  username          String   @unique
+  email             String?  @unique
+  bio               String?  
+  profilePictureUrl String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt 
+
+  // Relationships
+  requestsSent     ServiceRequest[] @relation("BuyerRequests")
+  requestsReceived ServiceRequest[] @relation("SellerRequests")
+  savedGigs        SavedGig[]
+}
+
+model ServiceRequest {
+  id            Int      @id @default(autoincrement())
+  gigId         Int      // Connects to the on-chain gig ID
+  
+  buyerWallet   String
+  sellerWallet  String
+  
+  requirements  String   @db.Text
+  proposedPrice Float?   // Optional budget negotiation
+  
+  status        String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  createdAt     DateTime @default(now())
+
+  buyer         User     @relation("BuyerRequests", fields: [buyerWallet], references: [walletAddress], onDelete: Cascade)
+  seller        User     @relation("SellerRequests", fields: [sellerWallet], references: [walletAddress], onDelete: Cascade)
+}
+
+model SavedGig {
+  id          Int      @id @default(autoincrement())
+  wallet      String
+  gigId       Int      // Connects to the on-chain gig ID
+  createdAt   DateTime @default(now())
+
+  // Prevents a user from saving the exact same gig twice
+  @@unique([wallet, gigId]) 
+
+  user        User     @relation(fields: [wallet], references: [walletAddress], onDelete: Cascade)
+}

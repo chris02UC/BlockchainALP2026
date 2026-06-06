@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWeb3 } from '../context/useWeb3';
 import { ethers, BigNumber } from 'ethers';
 import type { Gig } from '../types';
+import GigCard from '../components/GigCard';
 
 interface GigFormState {
   title: string;
@@ -11,7 +12,7 @@ interface GigFormState {
 }
 
 export default function Marketplace(): JSX.Element {
-  const { contracts } = useWeb3();
+  const { contracts, account } = useWeb3();
   const [gigs, setGigs] = useState<Gig[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [form, setForm] = useState<GigFormState>({ title: '', description: '', category: '', price: '' });
@@ -119,28 +120,11 @@ export default function Marketplace(): JSX.Element {
           <p className="text-gray-500 col-span-full">No active gigs found.</p>
         ) : (
           gigs.map(gig => (
-            <div key={gig.id.toString()} className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm hover:shadow-md transition flex flex-col justify-between">
-              <div>
-                <span className="inline-block bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4">
-                  {gig.category}
-                </span>
-                <h3 className="text-xl font-bold leading-tight mb-2">{gig.title}</h3>
-                <p className="text-sm text-gray-500 line-clamp-3 mb-4">{gig.description}</p>
-                <div className="flex items-center gap-2 mb-6">
-                  <div className="h-6 w-6 rounded-full bg-gray-200"></div>
-                  <p className="text-xs text-gray-500 font-medium">{gig.seller.substring(0,6)}...{gig.seller.substring(38)}</p>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-lg font-extrabold">{ethers.utils.formatEther(gig.price)} ETH</span>
-                <button 
-                  onClick={() => buyGig(gig.id, gig.price)} 
-                  className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition"
-                >
-                  Order
-                </button>
-              </div>
-            </div>
+            <GigCard 
+              key={gig.id.toString()} 
+              gig={gig} 
+              userWallet={account || ""} // Pass the connected wallet address down
+            />
           ))
         )}
       </div>

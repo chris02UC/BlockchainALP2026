@@ -38,6 +38,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
         uint256 escrowAmount;
         uint256 createdAt;
         uint256 completedAt;
+        string deliveryHash; 
     }
 
     struct SellerProfile {
@@ -63,6 +64,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
     event PaymentReleased(uint256 indexed orderId, address indexed seller, uint256 amount);
     event BalanceWithdrawn(address indexed seller, uint256 amount);
     event CommissionWithdrawn(address indexed owner, uint256 amount);
+    event GigStatusChanged(uint256 indexed gigId, bool isActive);
 
     modifier onlySeller(uint256 _gigId) {
         require(gigs[_gigId].seller == msg.sender, "Only seller can call this");
@@ -131,6 +133,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
             amount: gig.price,
             status: OrderStatus.PENDING,
             escrowAmount: gig.price,
+            deliveryHash: "",
             createdAt: block.timestamp,
             completedAt: 0
         });
@@ -142,12 +145,14 @@ contract Marketplace is Ownable, ReentrancyGuard {
         emit OrderPlaced(orderId, _gigId, msg.sender, gig.seller, gig.price);
     }
 
-    function completeOrder(uint256 _orderId) external onlySellerOfOrder(_orderId) {
+    function completeOrder(uint256 _orderId, string memory _deliveryHash) external onlySellerOfOrder(_orderId) {
         Order storage order = orders[_orderId];
         require(order.status == OrderStatus.PENDING, "Order is not pending");
+        require(bytes(_deliveryHash).length > 0, "Delivery hash cannot be empty");
 
         order.status = OrderStatus.COMPLETED;
         order.completedAt = block.timestamp;
+        order.deliveryHash = _deliveryHash;
 
         emit OrderCompleted(_orderId, msg.sender);
     }
@@ -214,6 +219,14 @@ contract Marketplace is Ownable, ReentrancyGuard {
         require(success, "Commission withdrawal failed");
 
         emit CommissionWithdrawn(owner(), commission);
+    }
+
+    function toggleGigStatus(uint256 _gigId) external onlySeller(_gigId) {
+        Gig storage gig = gigs[_gigId];
+        
+        gig.active = !gig.active;
+        
+        emit GigStatusChanged(_gigId, gig.active);
     }
 
     // View functions
