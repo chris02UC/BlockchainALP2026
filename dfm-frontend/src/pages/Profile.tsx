@@ -52,16 +52,17 @@ export default function Profile() {
     if (!account) return;
     setIsLoading(true);
     try {
-      let pictureUrl = profile.profilePictureUrl;
-      if (profileFile) {
-        pictureUrl = await fileToBase64(profileFile);
-      }
-      await api.patch(`/users/${account.toLowerCase()}`, {
+      const updatePayload: Record<string, any> = {
         username: profile.username,
         email: profile.email,
         bio: profile.bio,
-        profilePictureUrl: pictureUrl
-      });
+      };
+
+      if (profileFile) {
+        updatePayload.profilePictureUrl = await fileToBase64(profileFile);
+      }
+
+      await api.patch(`/users/${account.toLowerCase()}`, updatePayload);
       alert("Profile Updated!");
       setProfileFile(null);
     } catch (error) {

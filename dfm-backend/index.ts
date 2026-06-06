@@ -10,8 +10,8 @@ const app = express();
 const prisma = new PrismaClient();
 
 app.use(cors());
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true, parameterLimit: 1000000 }));
 
 // ==========================================
 // 1. USER PROFILE APIs
@@ -55,13 +55,20 @@ app.post('/api/users', async (req, res) => {
 app.patch('/api/users/:wallet', async (req, res) => {
   try {
     const { username, email, bio, profilePictureUrl } = req.body;
-    const user = await prisma.user.update({
+    const user = await prisma.user.upsert({
       where: { walletAddress: req.params.wallet.toLowerCase() },
-      data: { 
+      update: {
         ...(username && { username }),
         ...(email && { email }),
         ...(bio !== undefined && { bio }),
         ...(profilePictureUrl && { profilePictureUrl })
+      },
+      create: {
+        walletAddress: req.params.wallet.toLowerCase(),
+        username: username || `User_${req.params.wallet.slice(2, 6)}`,
+        email,
+        bio,
+        profilePictureUrl
       }
     });
     res.json(user);
@@ -80,12 +87,35 @@ app.post('/api/requests', async (req, res) => {
   try {
     const { gigId, buyerWallet, sellerWallet, requirements, proposedPrice } = req.body;
     
-    // Use the correct model name 'serviceRequest'
+    const buyerWalletLower = buyerWallet.toLowerCase();
+    const sellerWalletLower = sellerWallet.toLowerCase();
+    
+    // CRITICAL FIX: Ensure buyer and seller User records exist before creating the request
+    // This prevents foreign key constraint errors
+    await prisma.user.upsert({
+      where: { walletAddress: buyerWalletLower },
+      update: {},
+      create: { 
+        walletAddress: buyerWalletLower, 
+        username: "User_" + buyerWalletLower.slice(2, 6)
+      }
+    });
+    
+    await prisma.user.upsert({
+      where: { walletAddress: sellerWalletLower },
+      update: {},
+      create: { 
+        walletAddress: sellerWalletLower, 
+        username: "User_" + sellerWalletLower.slice(2, 6)
+      }
+    });
+    
+    // Now safely create the service request
     const newRequest = await prisma.serviceRequest.create({
       data: {
-        gigId: Number(gigId), // Ensure type consistency
-        buyerWallet: buyerWallet.toLowerCase(),
-        sellerWallet: sellerWallet.toLowerCase(),
+        gigId: Number(gigId),
+        buyerWallet: buyerWalletLower,
+        sellerWallet: sellerWalletLower,
         requirements,
         proposedPrice
       }
@@ -115,16 +145,39 @@ app.get('/api/requests/seller/:wallet', async (req, res) => {
   }
 });
 
-// Seller accepts or rejects a request
+// Buyer fetches all orders they've placed
+app.get('/api/requests/buyer/:wallet', async (req, res) => {
+  try {
+    const requests = await prisma.serviceRequest.findMany({
+      where: { buyerWallet: req.params.wallet.toLowerCase() },
+      orderBy: { createdAt: 'desc' },
+      include: { 
+        buyer: true,
+        seller: true
+      }
+    });
+    res.json(requests);
+  } catch (err) {
+    console.error("Error fetching buyer requests:", err);
+    res.status(500).json({ error: 'Failed to fetch requests' });
+  }
+});
+
+// Seller accepts or rejects a request or uploads delivery data
 app.patch('/api/requests/:id', async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, deliveryHash } = req.body;
+    const updateData: Record<string, any> = {};
+    if (status) updateData.status = status;
+    if (deliveryHash) updateData.deliveryHash = deliveryHash;
+
     const request = await prisma.serviceRequest.update({
       where: { id: parseInt(req.params.id) },
-      data: { status }
+      data: updateData
     });
     res.json(request);
   } catch (err) {
+    console.error('Error updating request:', err);
     res.status(500).json({ error: 'Failed to update request' });
   }
 });
@@ -187,22 +240,6 @@ app.get('/api/saved-gigs/:wallet', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Database error' });
   }
-});
-
-// Fetch user
-app.get('/api/users/:wallet', async (req, res) => {
-  const user = await prisma.user.findUnique({ where: { walletAddress: req.params.wallet } });
-  res.json(user || { username: '', bio: '' });
-});
-
-// Update user
-app.patch('/api/users/:wallet', async (req, res) => {
-  const updatedUser = await prisma.user.upsert({
-    where: { walletAddress: req.params.wallet },
-    update: { username: req.body.username, bio: req.body.bio },
-    create: { walletAddress: req.params.wallet, username: req.body.username, bio: req.body.bio }
-  });
-  res.json(updatedUser);
 });
 
 // ==========================================

@@ -38,6 +38,7 @@ model ServiceRequest {
   
   requirements  String   @db.Text
   proposedPrice Float?   // Optional budget negotiation
+  deliveryHash  String?
   
   status        String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
   createdAt     DateTime @default(now())

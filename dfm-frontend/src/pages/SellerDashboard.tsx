@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../utils/api';
 import { useWeb3 } from '../context/useWeb3'; 
 import { ethers } from 'ethers';
+import { uploadToIPFS } from '../utils/ipfs';
 
 export default function SellerDashboard() {
   const { account, contracts } = useWeb3();
@@ -10,6 +11,9 @@ export default function SellerDashboard() {
   const [myGigs, setMyGigs] = useState<any[]>([]); 
   const [orders, setOrders] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
+  const [uploadFiles, setUploadFiles] = useState<Record<number, File | null>>({});
+  const [uploadLoadingId, setUploadLoadingId] = useState<number | null>(null);
+  const [confirmLoadingId, setConfirmLoadingId] = useState<number | null>(null);
   
   // NEW: State to track which gig is currently clicked/expanded
   const [expandedGigId, setExpandedGigId] = useState<number | null>(null);
@@ -44,20 +48,20 @@ export default function SellerDashboard() {
   // 2. Fetch Off-Chain Orders
 useEffect(() => {
     const fetchOrders = async () => {
-        if (!account) return;
+        if (!account) {
+          setIsLoading(false);
+          return;
+        }
         try {
             // Make sure this matches the backend route exactly
             const { data } = await api.get(`/requests/seller/${account.toLowerCase()}`);
-            const sellerOrderIds = await contracts.marketplace!.getSellerOrders(account);
-            // const fetchedOrders = await Promise.all(
-            //     sellerOrderIds.map(id => contracts.marketplace!.getOrder(id))
-            // );
-            // setOrders(fetchedOrders);
-            setOrders(data);
-            
-            setIsLoading(false);
+            console.log("Orders fetched from API:", data);
+            setOrders(data || []);
         } catch (error) {
             console.error("Failed to fetch orders", error);
+            setOrders([]);
+        } finally {
+          setIsLoading(false);
         }
     };
     fetchOrders();
@@ -84,6 +88,57 @@ useEffect(() => {
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     } catch (error) {
       alert("Failed to update order status.");
+    }
+  };
+
+  const setUploadFileForOrder = (orderId: number, file: File | null) => {
+    setUploadFiles(prev => ({ ...prev, [orderId]: file }));
+  };
+
+  const deliverWork = async (orderId: number) => {
+    const file = uploadFiles[orderId];
+    if (!file) return alert('Please choose a file to upload.');
+    if (!account) return alert('Connect your wallet first.');
+    if (!contracts.marketplace) return alert('Contract not loaded.');
+
+    setUploadLoadingId(orderId);
+    try {
+      // 1. Upload file to IPFS
+      const deliveryHash = await uploadToIPFS(file);
+      
+      // 2. Call smart contract to mark order as COMPLETED with delivery hash
+      const tx = await contracts.marketplace.completeOrder(orderId, deliveryHash);
+      await tx.wait();
+      
+      // 3. Update database
+      const response = await api.patch(`/requests/${orderId}`, {
+        status: 'AWAITING_BUYER_REVIEW',
+        deliveryHash
+      });
+      setOrders(orders.map(o => o.id === orderId ? response.data : o));
+      setUploadFiles(prev => ({ ...prev, [orderId]: null }));
+      alert('Work uploaded and sent to buyer for review.');
+    } catch (error) {
+      console.error('Failed to deliver work:', error);
+      alert('Failed to upload work.');
+    } finally {
+      setUploadLoadingId(null);
+    }
+  };
+
+  const confirmDelivery = async (orderId: number) => {
+    if (!contracts.marketplace) return;
+    setConfirmLoadingId(orderId);
+    try {
+      const tx = await contracts.marketplace.confirmDelivery(orderId);
+      await tx.wait();
+      await updateOrderStatus(orderId, 'CONFIRMED');
+      alert('Delivery confirmed and payment released.');
+    } catch (err) {
+      console.error('Failed to confirm delivery', err);
+      alert('Failed to confirm delivery.');
+    } finally {
+      setConfirmLoadingId(null);
     }
   };
 
@@ -184,6 +239,7 @@ useEffect(() => {
                                 <span className={`text-xs font-black px-2 py-1 rounded uppercase ${
                                   order.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 
                                   order.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' : 
+                                  order.status === 'AWAITING_BUYER_REVIEW' ? 'bg-purple-100 text-purple-700' :
                                   order.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
                                   'bg-red-100 text-red-700'
                                 }`}>
@@ -212,9 +268,65 @@ useEffect(() => {
                               )}
                               
                               {order.status === 'IN_PROGRESS' && (
-                                <button onClick={() => updateOrderStatus(order.id, 'COMPLETED')} className="bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-bold">
-                                  Mark Completed
-                                </button>
+                                <div className="space-y-3">
+                                  {order.deliveryHash && (
+                                    <a
+                                      href={`https://gateway.pinata.cloud/ipfs/${order.deliveryHash.replace('ipfs://', '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="block text-sm text-blue-600 underline"
+                                    >
+                                      View previous upload
+                                    </a>
+                                  )}
+                                  <div className="flex flex-col gap-2">
+                                    <input
+                                      type="file"
+                                      onChange={(e) => setUploadFileForOrder(order.id, e.target.files?.[0] || null)}
+                                      className="text-sm text-gray-600"
+                                    />
+                                    <button
+                                      onClick={() => deliverWork(order.id)}
+                                      disabled={uploadLoadingId === order.id}
+                                      className="bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-bold disabled:opacity-50"
+                                    >
+                                      {uploadLoadingId === order.id ? 'Uploading...' : 'Upload Work for Review'}
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {order.status === 'AWAITING_BUYER_REVIEW' && order.deliveryHash && (
+                                <div className="space-y-3">
+                                  <a
+                                    href={`https://gateway.pinata.cloud/ipfs/${order.deliveryHash.replace('ipfs://', '')}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sm text-blue-600 underline block"
+                                  >
+                                    View work for approval
+                                  </a>
+                                  {order.buyerWallet.toLowerCase() === account?.toLowerCase() && (
+                                    <button
+                                      onClick={() => confirmDelivery(order.id)}
+                                      disabled={confirmLoadingId === order.id}
+                                      className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded-lg font-bold disabled:opacity-50"
+                                    >
+                                      {confirmLoadingId === order.id ? 'Approving...' : 'Approve Work & Release Payment'}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                              {order.status === 'COMPLETED' && order.deliveryHash && (
+                                <a
+                                  href={`https://gateway.pinata.cloud/ipfs/${order.deliveryHash.replace('ipfs://', '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="text-sm text-blue-600 underline block text-center py-2 bg-green-50 rounded"
+                                >
+                                  View completed work
+                                </a>
                               )}
                             </div>
 
