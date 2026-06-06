@@ -229,6 +229,7 @@ useEffect(() => {
                     ) : (
                       <div className="flex flex-col gap-4">
                         {gigOrders.map(order => (
+                            
                           <div key={order.id} className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col md:flex-row gap-6 shadow-sm">
                             
                             <div className="flex-1">
