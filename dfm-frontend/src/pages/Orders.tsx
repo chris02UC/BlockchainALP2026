@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import { useWeb3 } from '../context/useWeb3';
 import { api } from '../utils/api';
+import Reviews from '../components/Reviews';
 
 export default function Orders() {
   const { account, contracts } = useWeb3();
@@ -183,9 +184,16 @@ export default function Orders() {
                 )}
 
                 {order.status === 'CONFIRMED' && (
-                  <div className="text-green-700 bg-green-50 p-3 rounded">
-                    <p className="font-semibold">✓ Order completed and approved.</p>
-                    <p className="text-sm">Payment has been released to the seller.</p>
+                  <div className="flex flex-col gap-4">
+                    <div className="text-green-700 bg-green-50 p-3 rounded-lg border border-green-200">
+                      <p className="font-semibold">✓ Order completed and approved.</p>
+                      <p className="text-sm">Payment has been released to the seller.</p>
+                    </div>
+                    
+                    <Reviews 
+                      orderId={order.id} 
+                      sellerAddress={order.sellerWallet} 
+                    />
                   </div>
                 )}
 

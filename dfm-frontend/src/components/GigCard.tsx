@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Heart } from 'lucide-react';
 import { api } from '../utils/api';
 import { ethers } from 'ethers';
-import CheckoutModal from './CheckoutModal'; // Import the unified modal
+import { useWeb3 } from '../context/useWeb3';
+import CheckoutModal from './CheckoutModal';
 
 interface GigCardProps {
   gig: any; 
@@ -10,12 +11,19 @@ interface GigCardProps {
 }
 
 export default function GigCard({ gig, userWallet }: GigCardProps) {
+  const { contracts } = useWeb3(); // Extract contracts
+  
   const [isSaved, setIsSaved] = useState(false);
-  const [showCheckout, setShowCheckout] = useState(false); // Single state for the new modal
+  const [showCheckout, setShowCheckout] = useState(false); 
   const [seller, setSeller] = useState<any>(null);
+  
+  // 3. New states for on-chain ratings
+  const [rating, setRating] = useState<number>(0);
+  const [reviewCount, setReviewCount] = useState<number>(0);
 
   const numericGigId = gig.id.toNumber ? gig.id.toNumber() : gig.id;
 
+  // Fetch Saved Status
   useEffect(() => {
     const checkSavedStatus = async () => {
       if (!userWallet) return;
@@ -28,7 +36,8 @@ export default function GigCard({ gig, userWallet }: GigCardProps) {
     };
     checkSavedStatus();
   }, [numericGigId, userWallet]);
-  // Fetch seller profile
+
+  // Fetch Off-chain Seller Profile
   useEffect(() => {
     const fetchSeller = async () => {
       if (!gig.seller) return;
@@ -41,6 +50,23 @@ export default function GigCard({ gig, userWallet }: GigCardProps) {
     }
     fetchSeller();
   }, [gig.seller]);
+
+  // 4. Fetch On-chain Ratings!
+  useEffect(() => {
+    const fetchRating = async () => {
+      if (!contracts.ratings || !gig.seller) return;
+      try {
+        const avgRating = await contracts.ratings.getSellerRating(gig.seller);
+        const count = await contracts.ratings.getReviewCount(gig.seller);
+        setRating(Number(avgRating));
+        setReviewCount(Number(count));
+      } catch (error) {
+        console.error("Failed to fetch on-chain rating", error);
+      }
+    }
+    fetchRating();
+  }, [gig.seller, contracts]);
+
   const toggleSave = async () => {
     if (!userWallet) return alert("Please connect your wallet");
     try {
@@ -67,17 +93,31 @@ export default function GigCard({ gig, userWallet }: GigCardProps) {
         <h3 className="text-lg font-extrabold mt-2 pr-8 leading-tight">{gig.title}</h3>
         <p className="text-sm text-gray-500 mt-2 line-clamp-2">{gig.description}</p>
         
-        {/* Seller Info */}
+        {/* Seller Info + Ratings */}
         {seller && (
-          <div className="flex items-center gap-2 mt-4 p-3 bg-gray-50 rounded-lg">
+          <div className="flex items-center gap-3 mt-4 p-3 bg-gray-50 rounded-xl border border-gray-100">
             {seller.profilePictureUrl ? (
-              <img src={seller.profilePictureUrl} alt={seller.username} className="w-8 h-8 rounded-full object-cover" />
+              <img src={seller.profilePictureUrl} alt={seller.username} className="w-10 h-10 rounded-full object-cover" />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs">👤</div>
+              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm">👤</div>
             )}
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-gray-800 truncate">{seller.username || 'Unknown'}</p>
-              {seller.bio && <p className="text-xs text-gray-600 truncate">{seller.bio}</p>}
+              <p className="text-sm font-bold text-gray-800 truncate">{seller.username || 'Unknown'}</p>
+              
+              {/* 5. Display the Stars */}
+              <div className="flex items-center gap-1 mt-0.5">
+                {reviewCount > 0 ? (
+                  <>
+                    <span className="text-yellow-500 text-xs tracking-widest">
+                      {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+                    </span>
+                    <span className="text-xs text-gray-500 font-semibold ml-1">({reviewCount})</span>
+                  </>
+                ) : (
+                  <span className="text-xs text-gray-400 italic font-medium">New Seller</span>
+                )}
+              </div>
+
             </div>
           </div>
         )}
@@ -97,17 +137,15 @@ export default function GigCard({ gig, userWallet }: GigCardProps) {
       </div>
 
       <div className="mt-4">
-        {/* Single unified button */}
         <button 
           onClick={() => setShowCheckout(true)}
           disabled={!gig.active}
-          className="w-full bg-blue-600 text-white font-bold px-4 py-3 rounded-xl disabled:opacity-50 hover:bg-blue-700 transition"
+          className="w-full bg-blue-600 text-white font-bold px-4 py-3 rounded-xl disabled:opacity-50 hover:bg-blue-700 transition shadow-sm"
         >
           Order Now
         </button>
       </div>
 
-      {/* Render the unified modal */}
       {showCheckout && (
         <CheckoutModal 
           gig={gig} 

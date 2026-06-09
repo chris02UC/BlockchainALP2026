@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useWeb3 } from '../context/useWeb3';
-import { BigNumber } from 'ethers';
+// import { BigNumber } from 'ethers';
 
 interface ReviewsProps {
-  orderId: BigNumber;
+  orderId: number | string;
   sellerAddress: string;
 }
 
