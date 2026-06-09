@@ -166,10 +166,13 @@ app.get('/api/requests/buyer/:wallet', async (req, res) => {
 // Seller accepts or rejects a request or uploads delivery data
 app.patch('/api/requests/:id', async (req, res) => {
   try {
-    const { status, deliveryHash } = req.body;
+    const { status, deliveryHash, revisionNotes } = req.body; 
+    
     const updateData: Record<string, any> = {};
     if (status) updateData.status = status;
     if (deliveryHash) updateData.deliveryHash = deliveryHash;
+
+    if (revisionNotes !== undefined) updateData.revisionNotes = revisionNotes; 
 
     const request = await prisma.serviceRequest.update({
       where: { id: parseInt(req.params.id) },

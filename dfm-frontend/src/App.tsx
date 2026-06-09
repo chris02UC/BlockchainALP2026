@@ -8,6 +8,7 @@ import Orders from './pages/Orders'; // Fixed the double slash here
 import Disputes from './pages/Disputes';
 import SellerDashboard from './pages/SellerDashboard'; // 1. Import the new dashboard
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 
 export default function App(): JSX.Element {
   return (
@@ -22,6 +23,7 @@ export default function App(): JSX.Element {
               <Route path="/disputes" element={<Disputes />} />
               <Route path="/dashboard" element={<SellerDashboard />} /> 
               <Route path="/profile" element={<Profile />} />
+              <Route path="/admin" element={<AdminDashboard />} />
             </Routes>
           </main>
         </div>

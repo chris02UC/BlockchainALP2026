@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract Marketplace is Ownable, ReentrancyGuard {
-    uint256 public constant COMMISSION_PERCENT = 5; // 5% marketplace fee
+    uint256 public constant COMMISSION_PERCENT = 0;
     uint256 private gigIdCounter;
     uint256 private orderIdCounter;
 
@@ -65,6 +65,7 @@ contract Marketplace is Ownable, ReentrancyGuard {
     event BalanceWithdrawn(address indexed seller, uint256 amount);
     event CommissionWithdrawn(address indexed owner, uint256 amount);
     event GigStatusChanged(uint256 indexed gigId, bool isActive);
+    event RevisionRequested(uint256 indexed orderId, address indexed buyer);
 
     modifier onlySeller(uint256 _gigId) {
         require(gigs[_gigId].seller == msg.sender, "Only seller can call this");
@@ -113,6 +114,18 @@ contract Marketplace is Ownable, ReentrancyGuard {
         gigIdCounter++;
 
         emit GigCreated(gigId, msg.sender, _title, _price);
+    }
+
+    function requestRevision(uint256 _orderId) external onlyBuyerOfOrder(_orderId) nonReentrant {
+        Order storage order = orders[_orderId];
+        
+        // Ensure the order was actually delivered first
+        require(order.status == OrderStatus.COMPLETED, "Order not delivered yet");
+
+        // Revert the on-chain status back to PENDING so the seller can upload again
+        order.status = OrderStatus.PENDING;
+
+        emit RevisionRequested(_orderId, msg.sender);
     }
 
     function placeOrder(uint256 _gigId) external payable nonReentrant {

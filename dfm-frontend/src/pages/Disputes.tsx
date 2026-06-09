@@ -5,9 +5,36 @@ interface DisputeFormState { orderId: string; respondent: string; reason: string
 interface EvidenceFormState { disputeId: string; hash: string; }
 
 export default function Disputes(): JSX.Element {
-  const { contracts } = useWeb3();
+  const { account,contracts } = useWeb3();
   const [disputeForm, setDisputeForm] = useState<DisputeFormState>({ orderId: '', respondent: '', reason: '' });
   const [evidenceForm, setEvidenceForm] = useState<EvidenceFormState>({ disputeId: '', hash: '' });
+  const [isFetchingRespondent, setIsFetchingRespondent] = useState(false);
+
+  const fetchRespondentAddress = async (orderId: string) => {
+    if (!orderId || !contracts.marketplace || !account) return;
+    setIsFetchingRespondent(true);
+    
+    try {
+      const order = await contracts.marketplace.getOrder(orderId);
+      
+      // If the connected wallet is the Buyer, the respondent is the Seller
+      if (account.toLowerCase() === order.buyer.toLowerCase()) {
+        setDisputeForm(prev => ({ ...prev, respondent: order.seller }));
+      } 
+      // If the connected wallet is the Seller, the respondent is the Buyer
+      else if (account.toLowerCase() === order.seller.toLowerCase()) {
+        setDisputeForm(prev => ({ ...prev, respondent: order.buyer }));
+      } else {
+        alert("You are not a part of this order!");
+        setDisputeForm(prev => ({ ...prev, respondent: '' }));
+      }
+    } catch (error) {
+      console.error("Order not found", error);
+      setDisputeForm(prev => ({ ...prev, respondent: '' }));
+    } finally {
+      setIsFetchingRespondent(false);
+    }
+  };
 
   const openDispute = async (e: React.FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
@@ -53,15 +80,21 @@ export default function Disputes(): JSX.Element {
             placeholder="Order ID" 
             value={disputeForm.orderId}
             onChange={e => setDisputeForm({...disputeForm, orderId: e.target.value})} 
+            onBlur={() => fetchRespondentAddress(disputeForm.orderId)}
             required 
           />
-          <input 
-            className="p-4 bg-gray-50 rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition" 
-            placeholder="Respondent Address (The other party)" 
-            value={disputeForm.respondent}
-            onChange={e => setDisputeForm({...disputeForm, respondent: e.target.value})} 
-            required 
-          />
+          <div className="relative">
+            <input 
+              className={`p-4 w-full bg-gray-100 text-gray-500 rounded-2xl border border-gray-200 focus:outline-none transition ${isFetchingRespondent ? 'animate-pulse' : ''}`} 
+              placeholder="Respondent Address (Auto-filled)" 
+              value={disputeForm.respondent}
+              readOnly 
+              required 
+            />
+            {disputeForm.respondent && (
+               <span className="absolute right-4 top-4 text-green-600 text-sm font-bold">✓ Verified</span>
+            )}
+          </div>
           <textarea 
             className="p-4 bg-gray-50 rounded-2xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-red-100 focus:border-red-400 transition resize-none" 
             rows={4} 

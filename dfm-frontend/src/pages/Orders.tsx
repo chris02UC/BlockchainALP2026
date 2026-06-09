@@ -8,6 +8,9 @@ export default function Orders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [confirmLoadingId, setConfirmLoadingId] = useState<number | null>(null);
+  const [revisionLoadingId, setRevisionLoadingId] = useState<number | null>(null);
+  const [revisionOrderId, setRevisionOrderId] = useState<number | null>(null);
+  const [revisionNotes, setRevisionNotes] = useState<string>('');
 
   useEffect(() => {
     if (account) {
@@ -44,6 +47,37 @@ export default function Orders() {
       alert('Failed to approve delivery.');
     } finally {
       setConfirmLoadingId(null);
+    }
+  };
+
+  const submitRevision = async (orderId: number) => {
+    if (!contracts.marketplace) return;
+    if (!revisionNotes.trim()) return alert('Please enter your revision notes.');
+
+    setRevisionLoadingId(orderId);
+    try {
+      // 1. Call the new smart contract function
+      const tx = await contracts.marketplace.requestRevision(orderId);
+      await tx.wait();
+
+      // 2. Update the backend database with IN_PROGRESS AND the notes
+      await api.patch(`/requests/${orderId}`, { 
+        status: 'IN_PROGRESS',
+        revisionNotes: revisionNotes 
+      });
+      
+      // 3. Reload the UI
+      await loadOrders();
+      alert('Revision requested! The order has been sent back to the seller.');
+      
+      // Clear the text box
+      setRevisionOrderId(null);
+      setRevisionNotes('');
+    } catch (err) {
+      console.error('Failed to request revision', err);
+      alert('Failed to request revision. Check console for details.');
+    } finally {
+      setRevisionLoadingId(null);
     }
   };
 
@@ -86,13 +120,55 @@ export default function Orders() {
                         >
                           📥 Download Work for Review
                         </a>
-                        <button
-                          onClick={() => confirmDelivery(order.id)}
-                          disabled={confirmLoadingId === order.id}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-bold disabled:opacity-50 mb-2"
-                        >
-                          {confirmLoadingId === order.id ? 'Approving...' : '✓ Approve Work & Release Payment'}
-                        </button>
+                        
+                        <div className="flex flex-col gap-2">
+                          
+                          <button
+                            onClick={() => confirmDelivery(order.id)}
+                            disabled={confirmLoadingId === order.id || revisionLoadingId === order.id}
+                            className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg font-bold disabled:opacity-50"
+                          >
+                            {confirmLoadingId === order.id ? 'Approving...' : '✓ Approve Work & Release Payment'}
+                          </button>
+
+
+                          {revisionOrderId === order.id ? (
+                            <div className="mt-4 p-4 border border-orange-200 bg-orange-50 rounded-lg">
+                              <h4 className="font-bold text-orange-800 mb-2">What needs to be revised?</h4>
+                              <textarea
+                                className="w-full border border-orange-300 p-2 rounded mb-3 text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                                rows={3}
+                                placeholder="Please explain the changes you need..."
+                                value={revisionNotes}
+                                onChange={(e) => setRevisionNotes(e.target.value)}
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => submitRevision(order.id)}
+                                  disabled={revisionLoadingId === order.id}
+                                  className="flex-1 bg-orange-600 hover:bg-orange-700 text-white py-2 rounded-lg font-bold text-sm disabled:opacity-50"
+                                >
+                                  {revisionLoadingId === order.id ? 'Submitting...' : 'Submit Notes'}
+                                </button>
+                                <button
+                                  onClick={() => { setRevisionOrderId(null); setRevisionNotes(''); }}
+                                  className="px-4 bg-gray-200 hover:bg-gray-300 text-gray-800 py-2 rounded-lg font-bold text-sm"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setRevisionOrderId(order.id)}
+                              disabled={confirmLoadingId === order.id}
+                              className="w-full bg-orange-100 hover:bg-orange-200 text-orange-800 border border-orange-300 py-2 px-4 rounded-lg font-bold disabled:opacity-50 transition"
+                            >
+                              ↻ Request Revision
+                            </button>
+                          )}
+
+                        </div>
                       </>
                     ) : (
                       <p className="text-sm text-gray-500 mb-4">Delivery file is not available yet.</p>
