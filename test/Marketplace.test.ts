@@ -4,7 +4,6 @@ import { ethers } from "hardhat";
 
 describe("DFM Marketplace - TypeScript Tests", function () {
   
-  // --- FIXTURE: Clean state before EVERY test ---
   async function deployMarketplaceFixture() {
     const [admin, seller, buyer, hacker] = await ethers.getSigners();
 

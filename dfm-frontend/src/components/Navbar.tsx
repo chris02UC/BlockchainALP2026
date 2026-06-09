@@ -1,10 +1,31 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useWeb3 } from '../context/useWeb3';
+import { api } from '../utils/api';
 
 export default function Navbar(): JSX.Element {
   const { account, connectWallet } = useWeb3();
   const location = useLocation();
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchProfilePic = async () => {
+      if (!account) {
+        setProfilePic(null);
+        return;
+      }
+      try {
+        const { data } = await api.get(`/users/${account.toLowerCase()}`);
+        if (data && data.profilePictureUrl) {
+          setProfilePic(data.profilePictureUrl);
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile picture for navbar", error);
+      }
+    };
+    
+    fetchProfilePic();
+  }, [account]);
 
   const navLinkStyle = (path: string) => 
     `px-4 py-2 rounded-xl transition font-medium ${
@@ -26,11 +47,19 @@ export default function Navbar(): JSX.Element {
       <div>
         {account ? (
           <Link to="/profile" className="inline-flex items-center" aria-label="Profile">
-            <img
-              src={`https://avatars.dicebear.com/api/identicon/${account}.svg`}
-              alt="Profile"
-              className="w-10 h-10 rounded-full border border-gray-200"
-            />
+            {profilePic ? (
+              <img
+                src={profilePic}
+                alt="Profile"
+                className="w-10 h-10 rounded-full border border-gray-200 object-cover"
+              />
+            ) : (
+              <img
+                src={`https://avatars.dicebear.com/api/identicon/${account}.svg`}
+                alt="Default Profile"
+                className="w-10 h-10 rounded-full border border-gray-200"
+              />
+            )}
           </Link>
         ) : (
           <button 
