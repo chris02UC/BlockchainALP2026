@@ -4,12 +4,22 @@
 npx hardhat compile
 npx hardhat node => creates 20 test accounts
 
-## terminal 2
+## terminal 2 (run database)
+cd dfm-backend
+npx prisma generate
+npx prisma migrate dev
+npm run dev
+
+## terminal 3 (show database)
+cd dfm-backend
+npx prisma studio
+
+## terminal 4
+npx hardhat run scripts/run.ts --network localhost => there will be 3 accounts shown, change the addresses in config.ts to the three accounts
+
+## terminal 5
 cd dfm-frontend
 npm run dev / pnpm dev
-
-## terminal 3
-npx hardhat run scripts/run.ts --network localhost => there will be 3 accounts shown, change the addresses in config.ts to the three accounts
 
 ## browser
 open http://localhost:5173/
